@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Weather Status</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #2c2c2c;
+      color: #fff;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 20px;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .card {
+      background: #3a3a3a;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+
+    .big {
+      flex: 1 1 300px;
+      min-width: 280px;
+    }
+
+    .title {
+      font-size: 24px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .temp {
+      font-size: 48px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .description {
+      text-align: center;
+      font-size: 18px;
+      margin-top: -10px;
+    }
+
+    .time {
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .forecast-grid {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+    }
+
+    .forecast-item {
+      background: #444;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+      min-width: 90px;
+    }
+
+    .forecast-item img {
+      width: 40px;
+      height: 40px;
+    }
+
+    .label {
+      font-size: 14px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="card big">
+      <div class="title">Weather Status</div>
+      <div class="time" id="datetime"></div>
+      <div class="temp" id="temperature">--°C</div>
+      <div class="description" id="description">Loading...</div>
+    </div>
+
+    <div class="card big">
+      <div class="title">5 Days Forecast</div>
+      <div class="forecast-grid" id="dailyForecast"></div>
+    </div>
+
+    <div class="card big">
+      <div class="title">Hourly Forecast</div>
+      <div class="forecast-grid" id="hourlyForecast"></div>
+    </div>
+  </div>
+
+  <script>
+    // إعدادات الموقع - سلطنة عمان
+    const latitude = 21.0;
+    const longitude = 57.0;
+
+    // تحديث الوقت والتاريخ
+    const updateTime = () => {
+      const now = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
+      document.getElementById('datetime').textContent = now.toLocaleTimeString() + ' - ' + now.toLocaleDateString(undefined, options);
+    };
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    // جلب بيانات الطقس من Open-Meteo
+    const fetchWeather = async () => {
+      try {
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weathercode&daily=temperature_2m_max,temperature_2m_min,weathercode&current_weather=true&timezone=auto`);
+        const data = await response.json();
+
+        // الطقس الحالي
+        const current = data.current_weather;
+        document.getElementById('temperature').textContent = `${Math.round(current.temperature)}°C`;
+        document.getElementById('description').textContent = getWeatherDesc(current.weathercode);
+
+        // التوقعات اليومية
+        const daily = data.daily;
+        const dailyContainer = document.getElementById('dailyForecast');
+        dailyContainer.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+          dailyContainer.innerHTML += `
+            <div class="forecast-item">
+              <div class="label">${new Date(daily.time[i]).toLocaleDateString(undefined, { weekday: 'short' })}</div>
+              <img src="https://www.weatherbit.io/static/img/icons/${mapIcon(daily.weathercode[i])}.png" alt="" />
+              <div>${Math.round(daily.temperature_2m_max[i])}° / ${Math.round(daily.temperature_2m_min[i])}°</div>
+            </div>
+          `;
+        }
+
+        // التوقعات الساعية
+        const hourly = data.hourly;
+        const hourlyContainer = document.getElementById('hourlyForecast');
+        hourlyContainer.innerHTML = '';
+        for (let i = 12; i < 24; i += 3) {
+          hourlyContainer.innerHTML += `
+            <div class="forecast-item">
+              <div class="label">${hourly.time[i].slice(11, 16)}</div>
+              <img src="https://www.weatherbit.io/static/img/icons/${mapIcon(hourly.weathercode[i])}.png" alt="" />
+              <div>${Math.round(hourly.temperature_2m[i])}°C</div>
+            </div>
+          `;
+        }
+
+      } catch (error) {
+        console.error('Error fetching weather:', error);
+      }
+    };
+
+    // وصف الطقس حسب الكود
+    function getWeatherDesc(code) {
+      const map = {
+        0: 'Clear sky',
+        1: 'Mainly clear',
+        2: 'Partly cloudy',
+        3: 'Overcast',
+        45: 'Fog',
+        48: 'Depositing rime fog',
+        51: 'Light drizzle',
+        53: 'Drizzle',
+        55: 'Dense drizzle',
+        61: 'Rainy',
+        63: 'Moderate rain',
+        65: 'Heavy rain',
+        71: 'Snow fall',
+        80: 'Rain showers',
+        95: 'Thunderstorm'
+      };
+      return map[code] || 'Unknown';
+    }
+
+    function mapIcon(code) {
+      // تقريبية - تقدر تخصصها حسب الخدمة
+      if ([0, 1].includes(code)) return 'c01d';
+      if ([2, 3].includes(code)) return 'c02d';
+      if ([45, 48].includes(code)) return 'a05d';
+      if ([51, 53, 55, 61, 63, 65, 80].includes(code)) return 'r01d';
+      if ([71].includes(code)) return 's01d';
+      if ([95].includes(code)) return 't01d';
+      return 'c03d';
+    }
+
+    fetchWeather();
+  </script>
+</body>
+</html>
